@@ -13,6 +13,8 @@ class MultiStepForm {
         this.totalSteps = 40;
         this.formData = {};
         this.proxyUrl = 'https://ghl-gemini-proxy.onrender.com';
+        // NEW: Property to track current language
+        this.currentLang = 'en'; 
         this.init();
     }
 
@@ -27,6 +29,8 @@ class MultiStepForm {
         const prevBtn = document.getElementById('prevBtn');
         const form = document.getElementById('multiStepForm');
         const mainThemeSelect = document.getElementById('mainTheme');
+        // NEW: Language selector logic from Manus's analysis
+        const languageSelect = document.getElementById('languageSelect');
 
         if (nextBtn) nextBtn.addEventListener('click', () => this.nextStep());
         if (prevBtn) prevBtn.addEventListener('click', () => this.previousStep());
@@ -39,6 +43,41 @@ class MultiStepForm {
                 }
             });
         }
+
+        // NEW: Event listener for language changes
+        if (languageSelect) {
+            languageSelect.addEventListener('change', (e) => {
+                this.applyLanguage(e.target.value);
+            });
+        }
+    }
+    
+    // NEW: Function to apply language translations
+    applyLanguage(lang) {
+        this.currentLang = lang; // Store the selected language
+        const translations = {
+            es: {
+                next: 'Siguiente',
+                previous: 'Anterior',
+                submit: 'Generar Plan'
+            },
+            en: {
+                next: 'Next',
+                previous: 'Previous',
+                submit: 'Generate Content Plan'
+            }
+        };
+
+        const labels = translations[lang];
+        if (!labels) return;
+
+        const nextBtn = document.getElementById('nextBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const submitBtn = document.getElementById('submitBtn');
+
+        if (nextBtn) nextBtn.textContent = labels.next;
+        if (prevBtn) prevBtn.textContent = labels.previous;
+        if (submitBtn) submitBtn.textContent = labels.submit;
     }
 
     async nextStep() {
@@ -91,7 +130,6 @@ class MultiStepForm {
         });
     }
 
-    // MODIFIED: Rewritten with older syntax for maximum compatibility
     generateDraftStatement() {
         const businessType = this.formData.businessType || '';
         const primaryProduct = this.formData.primaryProduct || '';
@@ -289,16 +327,16 @@ class MultiStepForm {
 
         if (prevBtn) {
             prevBtn.style.display = this.currentStep > 1 ? 'inline-block' : 'none';
-            prevBtn.textContent = 'Previous';
         }
         if (nextBtn) {
             nextBtn.style.display = this.currentStep < this.totalSteps ? 'inline-block' : 'none';
-            nextBtn.textContent = 'Next';
         }
         if (submitBtn) {
             submitBtn.style.display = this.currentStep === this.totalSteps ? 'inline-block' : 'none';
-            submitBtn.textContent = 'Generate Content Plan';
         }
+        
+        // MODIFIED: Always apply language to set button text
+        this.applyLanguage(this.currentLang);
     }
 
     loadExistingData() {
