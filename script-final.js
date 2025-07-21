@@ -1,3 +1,9 @@
+alert("My Script is Running!");
+
+// Helper functions for Step 40
+function selectAll(groupName) {
+...
+
 // Helper functions for Step 40
 function selectAll(groupName) {
     document.querySelectorAll(`input[name="${groupName}"]`).forEach(cb => cb.checked = true);
