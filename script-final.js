@@ -1,9 +1,3 @@
-alert("My Script is Running!");
-
-// Helper functions for Step 40
-function selectAll(groupName) {
-...
-
 // Helper functions for Step 40
 function selectAll(groupName) {
     document.querySelectorAll(`input[name="${groupName}"]`).forEach(cb => cb.checked = true);
@@ -38,7 +32,6 @@ class MultiStepForm {
         if (prevBtn) prevBtn.addEventListener('click', () => this.previousStep());
         if (form) form.addEventListener('submit', (e) => this.handleSubmit(e));
         
-        // Bind change event to generate sub-themes
         if (mainThemeSelect) {
             mainThemeSelect.addEventListener('change', (e) => {
                 if (e.target.value) {
@@ -98,11 +91,13 @@ class MultiStepForm {
         });
     }
 
+    // MODIFIED: Rewritten with older syntax for maximum compatibility
     generateDraftStatement() {
-        const {
-            businessType = '', primaryProduct = '', problemSolved = '',
-            uniqueSellingProposition = '', clarityCustomerOutcomes = ''
-        } = this.formData;
+        const businessType = this.formData.businessType || '';
+        const primaryProduct = this.formData.primaryProduct || '';
+        const problemSolved = this.formData.problemSolved || '';
+        const uniqueSellingProposition = this.formData.uniqueSellingProposition || '';
+        const clarityCustomerOutcomes = this.formData.clarityCustomerOutcomes || '';
 
         let draft = `We run a ${businessType} specializing in ${primaryProduct}. We solve ${problemSolved}. What makes us different: ${uniqueSellingProposition}. Our clients achieve: ${clarityCustomerOutcomes}.`;
         
