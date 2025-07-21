@@ -7,49 +7,32 @@ function clearAll(groupName) {
     document.querySelectorAll(`input[name="${groupName}"]`).forEach(cb => cb.checked = false);
 }
 
-
 class MultiStepForm {
     constructor() {
         this.currentStep = 1;
-        this.totalSteps = 40; // 1 contact step + 39 question steps
+        this.totalSteps = 40;
         this.formData = {};
-        // MODIFIED: Add your Render URL here
         this.proxyUrl = 'https://ghl-gemini-proxy.onrender.com';
         this.init();
     }
 
     init() {
         this.bindEvents();
-        this.loadExistingData(); // Load any existing form data from DOM
-        this.showStep(); // Initial setup
-
-        // Defer translation until after DOM and translations object are ready
-        setTimeout(() => {
-            const languageSelect = document.getElementById('languageSelect');
-            const initialLang = languageSelect ? languageSelect.value : 'en';
-            if (window.translations) {
-                mySecretTranslatePage(initialLang);
-            }
-        }, 100);
+        this.loadExistingData();
+        this.showStep();
     }
 
     bindEvents() {
         const nextBtn = document.getElementById('nextBtn');
         const prevBtn = document.getElementById('prevBtn');
         const form = document.getElementById('multiStepForm');
-        const languageSelect = document.getElementById('languageSelect');
-        // NEW: Event listener for the main theme dropdown
         const mainThemeSelect = document.getElementById('mainTheme');
 
         if (nextBtn) nextBtn.addEventListener('click', () => this.nextStep());
         if (prevBtn) prevBtn.addEventListener('click', () => this.previousStep());
         if (form) form.addEventListener('submit', (e) => this.handleSubmit(e));
-        if (languageSelect) {
-            languageSelect.addEventListener('change', (e) => {
-                mySecretTranslatePage(e.target.value);
-            });
-        }
-        // NEW: Bind change event to generate sub-themes
+        
+        // Bind change event to generate sub-themes
         if (mainThemeSelect) {
             mainThemeSelect.addEventListener('change', (e) => {
                 if (e.target.value) {
@@ -59,7 +42,6 @@ class MultiStepForm {
         }
     }
 
-    // MODIFIED: Added async to the nextStep function to handle AI calls
     async nextStep() {
         if (this.validateCurrentStep()) {
             this.saveStepData();
@@ -73,13 +55,13 @@ class MultiStepForm {
                 } else if (this.currentStep === 24) {
                     const includeNameChoice = document.querySelector('input[name="includeNameChoice"]:checked');
                     this.currentStep = (includeNameChoice && includeNameChoice.value === 'No') ? 26 : 25;
-                } else if (this.currentStep === 38) { // Before showing step 39
+                } else if (this.currentStep === 38) {
                     if (!this.formData.businessType || !this.formData.primaryProduct) {
                         alert('Please complete all previous questions before generating themes.');
                         return;
                     }
                     this.currentStep++;
-                    await this.generateAIThemes(); // Wait for themes to generate
+                    await this.generateAIThemes();
                 } else {
                     this.currentStep++;
                 }
@@ -125,7 +107,6 @@ class MultiStepForm {
         }
     }
 
-    // NEW: Function to fetch themes from your Render proxy
     async generateAIThemes() {
         const themeLoading = document.getElementById('themeLoading');
         const mainThemeSelect = document.getElementById('mainTheme');
@@ -149,7 +130,7 @@ class MultiStepForm {
             if (!response.ok) throw new Error('Failed to fetch themes');
 
             const data = await response.json();
-            mainThemeSelect.innerHTML = '<option value="">-- Select a Main Theme --</option>'; // Reset
+            mainThemeSelect.innerHTML = '<option value="">-- Select a Main Theme --</option>';
             data.themes.forEach(theme => {
                 const option = document.createElement('option');
                 option.value = theme;
@@ -166,7 +147,6 @@ class MultiStepForm {
         }
     }
 
-    // NEW: Function to fetch sub-themes
     async generateAISubThemes(mainTheme) {
         const subthemeLoading = document.getElementById('subthemeLoading');
         const container = document.getElementById('weeklySubThemesContainer');
@@ -175,7 +155,7 @@ class MultiStepForm {
         subthemeLoading.style.display = 'block';
         container.style.display = 'none';
         controls.style.display = 'none';
-        container.innerHTML = ''; // Clear previous sub-themes
+        container.innerHTML = '';
 
         try {
             const response = await fetch(`${this.proxyUrl}/gemini-sub-themes`, {
@@ -209,7 +189,6 @@ class MultiStepForm {
         }
     }
 
-    // NEW: handleSubmit function to gather all data
     async handleSubmit(e) {
         e.preventDefault();
         if (!this.validateCurrentStep()) {
@@ -225,29 +204,7 @@ class MultiStepForm {
         console.log('--- FINAL FORM DATA ---');
         console.log(JSON.stringify(this.formData, null, 2));
         
-        // This is where you would add your final fetch call to submit the data to GHL or another backend
         alert('Form submitted! Check the console for the final data.');
-        
-        // Example of what a final submission might look like:
-        /*
-        try {
-            const response = await fetch('YOUR_GHL_WEBHOOK_URL', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(this.formData)
-            });
-            if (!response.ok) throw new Error('Submission failed');
-            
-            alert('Your content plan has been generated and sent!');
-            window.location.href = 'YOUR_THANK_YOU_PAGE_URL';
-
-        } catch (error) {
-            console.error('Submission Error:', error);
-            alert('There was an error submitting your form. Please try again.');
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Generate Content Plan';
-        }
-        */
     }
 
     validateCurrentStep() {
@@ -329,21 +286,24 @@ class MultiStepForm {
         const nextBtn = document.getElementById('nextBtn');
         const submitBtn = document.getElementById('submitBtn');
 
-        prevBtn.style.display = this.currentStep > 1 ? 'inline-block' : 'none';
-        nextBtn.style.display = this.currentStep < this.totalSteps ? 'inline-block' : 'none';
-        submitBtn.style.display = this.currentStep === this.totalSteps ? 'inline-block' : 'none';
-        
-        // Add text if not handled by a translation library
-        prevBtn.textContent = 'Previous';
-        nextBtn.textContent = 'Next';
-        submitBtn.textContent = 'Generate Content Plan';
+        if (prevBtn) {
+            prevBtn.style.display = this.currentStep > 1 ? 'inline-block' : 'none';
+            prevBtn.textContent = 'Previous';
+        }
+        if (nextBtn) {
+            nextBtn.style.display = this.currentStep < this.totalSteps ? 'inline-block' : 'none';
+            nextBtn.textContent = 'Next';
+        }
+        if (submitBtn) {
+            submitBtn.style.display = this.currentStep === this.totalSteps ? 'inline-block' : 'none';
+            submitBtn.textContent = 'Generate Content Plan';
+        }
     }
 
     loadExistingData() {
         const allInputs = document.querySelectorAll('input, textarea, select');
         allInputs.forEach(input => {
             if (input.value && input.name) {
-                // Simplified initial load
                 if (input.type === 'radio' && input.checked) {
                     this.formData[input.name] = input.value;
                 } else if (input.type !== 'radio' && input.type !== 'checkbox') {
@@ -372,7 +332,6 @@ class MultiStepForm {
     }
 }
 
-// Initialize the form when the DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     new MultiStepForm();
 });
