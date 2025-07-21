@@ -1,8 +1,20 @@
+// Helper functions for Step 40
+function selectAll(groupName) {
+    document.querySelectorAll(`input[name="${groupName}"]`).forEach(cb => cb.checked = true);
+}
+
+function clearAll(groupName) {
+    document.querySelectorAll(`input[name="${groupName}"]`).forEach(cb => cb.checked = false);
+}
+
+
 class MultiStepForm {
     constructor() {
         this.currentStep = 1;
         this.totalSteps = 40; // 1 contact step + 39 question steps
         this.formData = {};
+        // MODIFIED: Add your Render URL here
+        this.proxyUrl = 'https://ghl-gemini-proxy.onrender.com';
         this.init();
     }
 
@@ -10,7 +22,7 @@ class MultiStepForm {
         this.bindEvents();
         this.loadExistingData(); // Load any existing form data from DOM
         this.showStep(); // Initial setup
-        
+
         // Defer translation until after DOM and translations object are ready
         setTimeout(() => {
             const languageSelect = document.getElementById('languageSelect');
@@ -26,6 +38,8 @@ class MultiStepForm {
         const prevBtn = document.getElementById('prevBtn');
         const form = document.getElementById('multiStepForm');
         const languageSelect = document.getElementById('languageSelect');
+        // NEW: Event listener for the main theme dropdown
+        const mainThemeSelect = document.getElementById('mainTheme');
 
         if (nextBtn) nextBtn.addEventListener('click', () => this.nextStep());
         if (prevBtn) prevBtn.addEventListener('click', () => this.previousStep());
@@ -35,59 +49,41 @@ class MultiStepForm {
                 mySecretTranslatePage(e.target.value);
             });
         }
+        // NEW: Bind change event to generate sub-themes
+        if (mainThemeSelect) {
+            mainThemeSelect.addEventListener('change', (e) => {
+                if (e.target.value) {
+                    this.generateAISubThemes(e.target.value);
+                }
+            });
+        }
     }
 
-    nextStep() {
+    // MODIFIED: Added async to the nextStep function to handle AI calls
+    async nextStep() {
         if (this.validateCurrentStep()) {
-            // Always save step data before proceeding
             this.saveStepData();
-            
+
             if (this.currentStep < this.totalSteps) {
-                // Special logic for Q9 - auto-populate draft statement (step 10 in HTML)
-                if (this.currentStep === 10) {
-                    this.generateDraftStatement();
-                }
+                if (this.currentStep === 10) this.generateDraftStatement();
                 
-                // Special logic for Q10 - handle deep understanding opt-in
                 if (this.currentStep === 11) {
                     const deepOptIn = document.querySelector('input[name="deepUnderstandingOptIn"]:checked');
-                    if (deepOptIn && deepOptIn.value === 'No') {
-                        // Skip deep understanding questions (steps 12-21) - jump to step 22
-                        this.currentStep = 22;
-                    } else {
-                        this.currentStep++;
-                    }
-                }
-                // Special logic for Q23 - handle include name choice (step 24 in HTML)
-                else if (this.currentStep === 24) {
+                    this.currentStep = (deepOptIn && deepOptIn.value === 'No') ? 22 : 12;
+                } else if (this.currentStep === 24) {
                     const includeNameChoice = document.querySelector('input[name="includeNameChoice"]:checked');
-                    if (includeNameChoice && includeNameChoice.value === 'No') {
-                        // Skip Q24 (step 25) and go to step 26  
-                        this.currentStep = 26;
-                    } else {
-                        this.currentStep++;
-                    }
-                }
-                // Special logic for Q38 - generate AI themes before showing step 39
-                else if (this.currentStep === 38) {
-                    // Validate we have required business data before AI generation
+                    this.currentStep = (includeNameChoice && includeNameChoice.value === 'No') ? 26 : 25;
+                } else if (this.currentStep === 38) { // Before showing step 39
                     if (!this.formData.businessType || !this.formData.primaryProduct) {
-                        const lang = document.getElementById('languageSelect')?.value || 'en';
-                        const message = lang === 'es' ? 
-                            'Por favor complete todas las preguntas anteriores antes de generar temas.' :
-                            'Please complete all previous questions before generating themes.';
-                        alert(message);
+                        alert('Please complete all previous questions before generating themes.');
                         return;
                     }
                     this.currentStep++;
-                    this.generateAIThemes();
+                    await this.generateAIThemes(); // Wait for themes to generate
                 } else {
                     this.currentStep++;
                 }
                 this.showStep();
-            } else {
-                // Final step - submit to GHL
-                this.handleSubmit();
             }
         }
     }
@@ -96,189 +92,221 @@ class MultiStepForm {
         const currentStepElement = document.getElementById(`step${this.currentStep}`);
         if (!currentStepElement) return;
 
-        // Save all form inputs from current step
         const inputs = currentStepElement.querySelectorAll('input, textarea, select');
         inputs.forEach(input => {
             if (input.type === 'checkbox') {
                 if (!this.formData[input.name]) this.formData[input.name] = [];
-                if (input.checked && !this.formData[input.name].includes(input.value)) {
+                const valueExists = this.formData[input.name].includes(input.value);
+                if (input.checked && !valueExists) {
                     this.formData[input.name].push(input.value);
-                } else if (!input.checked) {
+                } else if (!input.checked && valueExists) {
                     this.formData[input.name] = this.formData[input.name].filter(val => val !== input.value);
                 }
             } else if (input.type === 'radio') {
-                if (input.checked) {
-                    this.formData[input.name] = input.value;
-                }
+                if (input.checked) this.formData[input.name] = input.value;
             } else {
                 this.formData[input.name] = input.value;
             }
         });
-        
-        console.log('Saved step data:', this.formData);
     }
 
     generateDraftStatement() {
-        // Collect responses from Q1-Q8 using formData (already saved)
-        const businessType = this.formData.businessType || '';
-        const primaryProduct = this.formData.primaryProduct || '';
-        const problemSolved = this.formData.problemSolved || '';
-        const uniqueSellingProposition = this.formData.uniqueSellingProposition || '';
-        const claritySentence = this.formData.claritySentence || '';
-        const clarityKidExplanation = this.formData.clarityKidExplanation || '';
-        const clarityCustomerOutcomes = this.formData.clarityCustomerOutcomes || '';
-        const clarityMisunderstanding = this.formData.clarityMisunderstanding || '';
+        const {
+            businessType = '', primaryProduct = '', problemSolved = '',
+            uniqueSellingProposition = '', clarityCustomerOutcomes = ''
+        } = this.formData;
 
-        // Generate a simple draft statement
-        let draft = '';
-        if (businessType && primaryProduct) {
-            draft += `We run a ${businessType} specializing in ${primaryProduct}. `;
-        }
-        if (problemSolved) {
-            draft += `We solve ${problemSolved}. `;
-        }
-        if (uniqueSellingProposition) {
-            draft += `What makes us different: ${uniqueSellingProposition}. `;
-        }
-        if (clarityCustomerOutcomes) {
-            draft += `Our clients achieve: ${clarityCustomerOutcomes}.`;
-        }
-
-        // Auto-populate the draft statement textarea and save to formData
+        let draft = `We run a ${businessType} specializing in ${primaryProduct}. We solve ${problemSolved}. What makes us different: ${uniqueSellingProposition}. Our clients achieve: ${clarityCustomerOutcomes}.`;
+        
         const draftTextarea = document.getElementById('clarityDraftStatement');
-        if (draftTextarea && draft) {
+        if (draftTextarea) {
             draftTextarea.value = draft.trim();
             this.formData.clarityDraftStatement = draft.trim();
         }
+    }
+
+    // NEW: Function to fetch themes from your Render proxy
+    async generateAIThemes() {
+        const themeLoading = document.getElementById('themeLoading');
+        const mainThemeSelect = document.getElementById('mainTheme');
+        
+        themeLoading.style.display = 'block';
+        mainThemeSelect.style.display = 'none';
+
+        try {
+            const response = await fetch(`${this.proxyUrl}/gemini-themes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    businessType: this.formData.businessType,
+                    primaryProduct: this.formData.primaryProduct,
+                    problemSolved: this.formData.problemSolved,
+                    targetAudience: this.formData.targetAudience,
+                    contentGoal: this.formData.contentGoal
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch themes');
+
+            const data = await response.json();
+            mainThemeSelect.innerHTML = '<option value="">-- Select a Main Theme --</option>'; // Reset
+            data.themes.forEach(theme => {
+                const option = document.createElement('option');
+                option.value = theme;
+                option.textContent = theme;
+                mainThemeSelect.appendChild(option);
+            });
+
+        } catch (error) {
+            console.error('Error generating AI themes:', error);
+            alert('Could not generate AI themes. Please try again.');
+        } finally {
+            themeLoading.style.display = 'none';
+            mainThemeSelect.style.display = 'block';
+        }
+    }
+
+    // NEW: Function to fetch sub-themes
+    async generateAISubThemes(mainTheme) {
+        const subthemeLoading = document.getElementById('subthemeLoading');
+        const container = document.getElementById('weeklySubThemesContainer');
+        const controls = document.getElementById('subthemeControls');
+
+        subthemeLoading.style.display = 'block';
+        container.style.display = 'none';
+        controls.style.display = 'none';
+        container.innerHTML = ''; // Clear previous sub-themes
+
+        try {
+            const response = await fetch(`${this.proxyUrl}/gemini-sub-themes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mainTheme })
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch sub-themes');
+
+            const data = await response.json();
+            data.subthemes.forEach((subtheme, index) => {
+                const id = `subtheme-${index}`;
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.name = 'weeklySubThemes';
+                checkbox.value = subtheme;
+                checkbox.id = id;
+                label.appendChild(checkbox);
+                label.append(` ${subtheme}`);
+                container.appendChild(label);
+            });
+        } catch (error) {
+            console.error('Error generating AI sub-themes:', error);
+            alert('Could not generate sub-themes.');
+        } finally {
+            subthemeLoading.style.display = 'none';
+            container.style.display = 'block';
+            controls.style.display = 'block';
+        }
+    }
+
+    // NEW: handleSubmit function to gather all data
+    async handleSubmit(e) {
+        e.preventDefault();
+        if (!this.validateCurrentStep()) {
+            alert('Please fix the errors before submitting.');
+            return;
+        }
+        this.saveStepData();
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+
+        console.log('--- FINAL FORM DATA ---');
+        console.log(JSON.stringify(this.formData, null, 2));
+        
+        // This is where you would add your final fetch call to submit the data to GHL or another backend
+        alert('Form submitted! Check the console for the final data.');
+        
+        // Example of what a final submission might look like:
+        /*
+        try {
+            const response = await fetch('YOUR_GHL_WEBHOOK_URL', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(this.formData)
+            });
+            if (!response.ok) throw new Error('Submission failed');
+            
+            alert('Your content plan has been generated and sent!');
+            window.location.href = 'YOUR_THANK_YOU_PAGE_URL';
+
+        } catch (error) {
+            console.error('Submission Error:', error);
+            alert('There was an error submitting your form. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Generate Content Plan';
+        }
+        */
     }
 
     validateCurrentStep() {
         const currentStepElement = document.getElementById(`step${this.currentStep}`);
         if (!currentStepElement) return true;
 
-        // Get all required fields in current step
-        const requiredFields = currentStepElement.querySelectorAll('input[required], textarea[required], select[required]');
         let isValid = true;
-
-        // Clear all previous errors first
-        currentStepElement.querySelectorAll('.error-message').forEach(error => {
-            error.textContent = '';
-            error.style.display = 'none';
-        });
-        currentStepElement.querySelectorAll('.error').forEach(field => {
-            field.classList.remove('error');
-        });
+        const requiredFields = currentStepElement.querySelectorAll('[required]');
+        
+        currentStepElement.querySelectorAll('.error-message').forEach(el => el.style.display = 'none');
+        currentStepElement.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
 
         requiredFields.forEach(field => {
-            const errorElement = document.getElementById(`${field.name}Error`);
+            let fieldValid = true;
+            if (field.type === 'radio' || field.type === 'checkbox') {
+                const groupName = field.name;
+                const group = currentStepElement.querySelectorAll(`input[name="${groupName}"]`);
+                if (!Array.from(group).some(i => i.checked)) {
+                    fieldValid = false;
+                }
+            } else if (!field.value.trim()) {
+                fieldValid = false;
+            }
 
-            // Check validation
-            if (!field.value.trim()) {
+            if (!fieldValid) {
                 isValid = false;
+                const errorElement = document.getElementById(`${field.name}Error`);
                 field.classList.add('error');
                 if (errorElement) {
-                    const lang = document.getElementById('languageSelect')?.value || 'en';
-                    const errorMsg = lang === 'es' ? 'Este campo es obligatorio.' : 'This field is required.';
-                    errorElement.textContent = errorMsg;
+                    errorElement.textContent = 'This field is required.';
                     errorElement.style.display = 'block';
                 }
             }
-
-            // Special validation for radio buttons
-            if (field.type === 'radio') {
-                const radioGroup = currentStepElement.querySelectorAll(`input[name="${field.name}"]`);
-                const isChecked = Array.from(radioGroup).some(radio => radio.checked);
-                if (!isChecked) {
-                    isValid = false;
-                    radioGroup.forEach(radio => radio.classList.add('error'));
-                    const radioError = document.getElementById(`${field.name}Error`);
-                    if (radioError) {
-                        const lang = document.getElementById('languageSelect')?.value || 'en';
-                        const errorMsg = lang === 'es' ? 'Por favor seleccione una opción.' : 'Please select an option.';
-                        radioError.textContent = errorMsg;
-                        radioError.style.display = 'block';
-                    }
-                }
-            }
         });
-
-        // Additional validation for checkbox groups that require at least one selection
-        const checkboxGroups = currentStepElement.querySelectorAll('.checkbox-group');
-        checkboxGroups.forEach(group => {
-            const checkboxes = group.querySelectorAll('input[type="checkbox"]');
-            if (checkboxes.length > 0) {
-                const isAnyChecked = Array.from(checkboxes).some(cb => cb.checked);
-                const groupName = checkboxes[0]?.name;
-                if (groupName) {
-                    // Special validation for weeklySubThemes - requires exactly 4
-                    if (groupName === 'weeklySubThemes') {
-                        const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
-                        if (checkedCount !== 4) {
-                            isValid = false;
-                            checkboxes.forEach(cb => cb.classList.add('error'));
-                            const groupError = document.getElementById(`${groupName}Error`);
-                            if (groupError) {
-                                const lang = document.getElementById('languageSelect')?.value || 'en';
-                                const errorMsg = lang === 'es' ? 
-                                    'Por favor seleccione exactamente 4 subtemas semanales.' : 
-                                    'Please select exactly 4 weekly sub-themes.';
-                                groupError.textContent = errorMsg;
-                                groupError.style.display = 'block';
-                            }
-                        }
-                    }
-                    // Regular validation for other groups - at least one
-                    else if (!isAnyChecked) {
-                        const requiredGroups = ['contentFocus', 'interactionStyles'];
-                        if (requiredGroups.includes(groupName)) {
-                            isValid = false;
-                            checkboxes.forEach(cb => cb.classList.add('error'));
-                            const groupError = document.getElementById(`${groupName}Error`);
-                            if (groupError) {
-                                const lang = document.getElementById('languageSelect')?.value || 'en';
-                                const errorMsg = lang === 'es' ? 'Por favor seleccione al menos una opción.' : 'Please select at least one option.';
-                                groupError.textContent = errorMsg;
-                                groupError.style.display = 'block';
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
         return isValid;
     }
-
+    
     previousStep() {
         if (this.currentStep > 1) {
-            // Always save current step data before going back
             this.saveStepData();
             
-            // Special logic for going back from content planning section  
             if (this.currentStep === 26) {
-                // Check if user had selected "No" for deep understanding
-                const deepOptIn = document.querySelector('input[name="deepUnderstandingOptIn"]:checked');
-                if (deepOptIn && deepOptIn.value === 'No') {
-                    // Go back to Q11 (step 11) 
-                    this.currentStep = 11;
-                } else {
-                    // Go back to last deep understanding question (step 25)
-                    this.currentStep = 25;
-                }
+                const includeNameChoice = this.formData.includeNameChoice;
+                this.currentStep = (includeNameChoice === 'No') ? 24 : 25;
+            } else if (this.currentStep === 22) {
+                const deepOptIn = this.formData.deepUnderstandingOptIn;
+                this.currentStep = (deepOptIn === 'No') ? 11 : 21;
             } else {
                 this.currentStep--;
             }
             this.showStep();
-            this.restoreStepData(); // Restore data for the step we're going to
+            this.restoreStepData();
         }
     }
 
     showStep() {
         document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
         const currentStepElement = document.getElementById(`step${this.currentStep}`);
-        if (currentStepElement) {
-            currentStepElement.classList.add('active');
-        }
+        if (currentStepElement) currentStepElement.classList.add('active');
         this.updateProgressBar();
         this.updateNavigation();
     }
@@ -288,9 +316,8 @@ class MultiStepForm {
         const currentStepEl = document.getElementById('currentStep');
         const totalStepsEl = document.getElementById('totalSteps');
         
-        // Step 1 is contact info, actual questions start at step 2
         const currentQuestion = Math.max(0, this.currentStep - 1);
-        const totalQuestions = 39; // 39 actual questions (steps 2-40)
+        const totalQuestions = 39;
         
         if (progressFill) progressFill.style.width = `${(currentQuestion / totalQuestions) * 100}%`;
         if (currentStepEl) currentStepEl.textContent = currentQuestion;
@@ -298,45 +325,28 @@ class MultiStepForm {
     }
 
     updateNavigation() {
-        const lang = document.getElementById('languageSelect')?.value || 'en';
-        // Safe access to translations object
-        const t = (window.translations && window.translations[lang]) ? 
-                  window.translations[lang] : 
-                  (window.translations ? window.translations.en : null);
-        
         const prevBtn = document.getElementById('prevBtn');
         const nextBtn = document.getElementById('nextBtn');
         const submitBtn = document.getElementById('submitBtn');
 
-        if(prevBtn && t) {
-            prevBtn.textContent = t.previous;
-            prevBtn.style.display = this.currentStep > 1 ? 'inline-block' : 'none';
-        }
-        if(nextBtn && t) {
-            nextBtn.textContent = t.next;
-            nextBtn.style.display = this.currentStep < this.totalSteps ? 'inline-block' : 'none';
-        }
-        if(submitBtn && t) {
-            submitBtn.textContent = t.generateContent;
-            submitBtn.style.display = this.currentStep === this.totalSteps ? 'inline-block' : 'none';
-        }
+        prevBtn.style.display = this.currentStep > 1 ? 'inline-block' : 'none';
+        nextBtn.style.display = this.currentStep < this.totalSteps ? 'inline-block' : 'none';
+        submitBtn.style.display = this.currentStep === this.totalSteps ? 'inline-block' : 'none';
+        
+        // Add text if not handled by a translation library
+        prevBtn.textContent = 'Previous';
+        nextBtn.textContent = 'Next';
+        submitBtn.textContent = 'Generate Content Plan';
     }
 
     loadExistingData() {
-        // Load any existing data from form fields into formData object
         const allInputs = document.querySelectorAll('input, textarea, select');
         allInputs.forEach(input => {
             if (input.value && input.name) {
-                if (input.type === 'checkbox') {
-                    if (!this.formData[input.name]) this.formData[input.name] = [];
-                    if (input.checked && !this.formData[input.name].includes(input.value)) {
-                        this.formData[input.name].push(input.value);
-                    }
-                } else if (input.type === 'radio') {
-                    if (input.checked) {
-                        this.formData[input.name] = input.value;
-                    }
-                } else {
+                // Simplified initial load
+                if (input.type === 'radio' && input.checked) {
+                    this.formData[input.name] = input.value;
+                } else if (input.type !== 'radio' && input.type !== 'checkbox') {
                     this.formData[input.name] = input.value;
                 }
             }
@@ -344,23 +354,25 @@ class MultiStepForm {
     }
 
     restoreStepData() {
-        // Restore form data for the current step from formData object
         const currentStepElement = document.getElementById(`step${this.currentStep}`);
         if (!currentStepElement) return;
 
         const inputs = currentStepElement.querySelectorAll('input, textarea, select');
         inputs.forEach(input => {
-            if (input.name && this.formData[input.name] !== undefined) {
+            if (this.formData[input.name] !== undefined) {
                 if (input.type === 'checkbox') {
-                    const values = Array.isArray(this.formData[input.name]) ? 
-                                   this.formData[input.name] : [this.formData[input.name]];
-                    input.checked = values.includes(input.value);
+                    input.checked = this.formData[input.name].includes(input.value);
                 } else if (input.type === 'radio') {
                     input.checked = this.formData[input.name] === input.value;
                 } else {
-                    input.value = this.formData[input.name] || '';
+                    input.value = this.formData[input.name];
                 }
             }
         });
     }
 }
+
+// Initialize the form when the DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    new MultiStepForm();
+});
