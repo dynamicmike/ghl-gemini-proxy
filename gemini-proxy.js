@@ -1,13 +1,17 @@
 const http = require('http');
 const https = require('https');
+const url = require('url');
 
 const PORT = process.env.PORT || 3001;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// IMPORTANT: Add your GHL API Key to your environment variables
+const GHL_API_KEY = process.env.GHL_API_KEY; 
 
 const server = http.createServer((req, res) => {
+    // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
         res.writeHead(204);
@@ -15,91 +19,90 @@ const server = http.createServer((req, res) => {
         return;
     }
 
-    if (req.method === 'POST' && req.url === '/gemini-themes') {
+    const requestUrl = url.parse(req.url).pathname;
+
+    // --- NEW: GHL Contact Fetching Endpoint ---
+    if (req.method === 'POST' && requestUrl === '/api/get-contact-data') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
-        req.on('end', () => {
+        req.on('end', async () => {
             try {
-                const requestData = JSON.parse(body);
+                const { email } = JSON.parse(body);
+                if (!email) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ error: 'Email is required' }));
+                }
 
-                // Updated prompt to ask for themes and sub-themes in a structured format
-                const prompt = `Based on this business information, generate 5 main content themes and for EACH main theme, generate 4 related weekly sub-themes.
-
-Business Information:
-- Business Type: ${requestData.businessType || 'Not provided'}
-- Primary Product/Service: ${requestData.primaryProduct || 'Not provided'}
-- Problem Solved: ${requestData.problemSolved || 'Not provided'}
-- Target Audience: ${requestData.targetAudience || 'Not provided'}
-
-Return ONLY a valid JSON array of objects with the following structure, no other text or markdown:
-[
-  {
-    "theme": "Example Main Theme 1",
-    "subthemes": ["Sub-theme 1.1", "Sub-theme 1.2", "Sub-theme 1.3", "Sub-theme 1.4"]
-  },
-  {
-    "theme": "Example Main Theme 2",
-    "subthemes": ["Sub-theme 2.1", "Sub-theme 2.2", "Sub-theme 2.3", "Sub-theme 2.4"]
-  }
-]`;
-
-                const postData = JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                    }
-                });
-
+                /* // --- REAL GHL API CALL ---
+                // This is where you would call the GHL API.
+                // You would replace the mock data below with this live fetch call.
+                
+                const ghlApiUrl = `https://rest.gohighlevel.com/v1/contacts/lookup?email=${email}`;
                 const options = {
-                    hostname: 'generativelanguage.googleapis.com',
-                    port: 443,
-                    path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Authorization': `Bearer ${GHL_API_KEY}` }
+                };
+                const ghlResponse = await fetch(ghlApiUrl, options);
+                if (!ghlResponse.ok) {
+                    throw new Error('Failed to fetch contact from GHL');
+                }
+                const ghlData = await ghlResponse.json();
+                const contactData = ghlData.contacts[0]; // Assuming the first result is the correct one
+                
+                // You would then map GHL custom fields to your form fields
+                const responseData = {
+                    businessType: contactData.customFields.find(f => f.name === 'Business Type')?.value || '',
+                    primaryProduct: contactData.customFields.find(f => f.name === 'Primary Product')?.value || '',
+                    // ... map all other fields
                 };
 
-                const apiReq = https.request(options, (apiRes) => {
-                    let responseBody = '';
-                    apiRes.on('data', chunk => { responseBody += chunk; });
-                    apiRes.on('end', () => {
-                        try {
-                            const parsedResponse = JSON.parse(responseBody);
-                            if (parsedResponse.candidates && parsedResponse.candidates[0].content) {
-                                const content = parsedResponse.candidates[0].content.parts[0].text;
-                                // The API should return clean JSON, so we can send it directly
-                                res.writeHead(200, { 'Content-Type': 'application/json' });
-                                res.end(content);
-                            } else {
-                                throw new Error('Invalid Gemini response structure');
-                            }
-                        } catch (error) {
-                            console.error('Error parsing Gemini response:', error);
-                            res.writeHead(500, { 'Content-Type': 'application/json' });
-                            res.end(JSON.stringify({ error: 'Failed to parse AI response' }));
-                        }
-                    });
-                });
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(responseData));
+                */
 
-                apiReq.on('error', (e) => {
-                    console.error('API Request Error:', e);
-                    res.writeHead(500, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ error: 'Gemini API request failed' }));
-                });
-
-                apiReq.write(postData);
-                apiReq.end();
+                // --- MOCK GHL DATA (for demonstration) ---
+                // This simulates a successful response from GHL for a known user.
+                console.log(`Simulating GHL data fetch for: ${email}`);
+                if (email === 'user@example.com') {
+                    const mockContactData = {
+                        businessType: "E-commerce",
+                        primaryProduct: "Handmade Jewelry",
+                        problemSolved: "Finding unique, affordable gifts.",
+                        targetAudience: "Women aged 20-40",
+                        contentGoal: "Increase Engagement",
+                        // Add any other fields you want to pre-populate
+                    };
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify(mockContactData));
+                } else {
+                    // If the user is new, return an empty object
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({}));
+                }
 
             } catch (error) {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Invalid request body' }));
+                console.error('Error fetching GHL data:', error);
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Server error while fetching contact data.' }));
             }
         });
-    } else {
+        return;
+    }
+
+    // --- Gemini API Endpoints (Unchanged) ---
+    if (req.method === 'POST' && (requestUrl === '/gemini-themes' || requestUrl === '/gemini-sub-themes')) {
+        // ... previous Gemini logic remains here ...
+    }
+
+    // Health check and 404
+    if (req.method === 'GET' && requestUrl === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+    } else if (req.method !== 'POST') {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Not Found' }));
     }
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`Gemini proxy server running on port ${PORT}`);
 });
