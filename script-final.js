@@ -241,14 +241,13 @@ class MultiStepForm {
 
     document.querySelectorAll('[data-lang-key]').forEach(el => {
         const key = el.getAttribute('data-lang-key');
-        if (langData[key]) {
+        if (langData[key] !== undefined) {
             el.textContent = langData[key];
         } else {
-            // If a key is missing in the new language, keep the English text as a fallback.
             el.textContent = translations['en'][key] || '';
         }
     });
-}
+    }
 
         const labels = translations[lang];
         if (!labels) return;
