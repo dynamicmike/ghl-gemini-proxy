@@ -351,3 +351,14 @@ min-height: 48px;
         margin: 0;
     }
 }
+/* Final correction for navigation button height and text wrapping */
+.form-navigation .btn {
+    padding: 0.75rem 1rem !important;
+    font-size: 1rem !important;
+    line-height: 1.4 !important;
+    white-space: normal; /* Allows longer text like "Generar Plan" to wrap */
+    min-height: 3.5em !important; /* Ensures enough height for two lines of text */
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
