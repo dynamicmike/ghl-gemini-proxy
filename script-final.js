@@ -236,13 +236,16 @@ class MultiStepForm {
     // NEW: Function to apply language translations
     applyLanguage(lang) {
     this.currentLang = lang;
-    const langData = translations[lang]; // This now correctly refers to the big object at the top
+    const langData = translations[lang];
     if (!langData) return;
 
     document.querySelectorAll('[data-lang-key]').forEach(el => {
         const key = el.getAttribute('data-lang-key');
         if (langData[key]) {
             el.textContent = langData[key];
+        } else {
+            // If a key is missing in the new language, keep the English text as a fallback.
+            el.textContent = translations['en'][key] || '';
         }
     });
 }
