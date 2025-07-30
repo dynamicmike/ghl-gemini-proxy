@@ -230,6 +230,7 @@ body {
     text-decoration: none;
     display: inline-block;
     min-width: 120px;
+    min-height: 48px;
 }
 
 .btn-secondary {
