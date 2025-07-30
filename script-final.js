@@ -163,6 +163,7 @@ class MultiStepForm {
         this.bindEvents();
         this.loadExistingData();
         this.showStep();
+this.applyLanguage(this.currentLang);
     }
 
     bindEvents() {
@@ -295,47 +296,45 @@ class MultiStepForm {
         themeLoading.style.display = 'block';
         mainThemeSelect.style.display = 'none';
 
-       try {
-    const response = await fetch(`${this.proxyUrl}/gemini-sub-themes`, {
+      try {
+    const response = await fetch(`${this.proxyUrl}/gemini-themes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mainTheme })
+        body: JSON.stringify({
+            businessType: this.formData.businessType,
+            primaryProduct: this.formData.primaryProduct,
+            problemSolved: this.formData.problemSolved,
+            targetAudience: this.formData.targetAudience,
+            contentGoal: this.formData.contentGoal
+        })
     });
 
     // --- ADDED SAFETY CHECK ---
     const type = response.headers.get('Content-Type') || '';
     if (!response.ok || !type.includes('application/json')) {
-        console.error('Fetch for sub-themes failed or returned non-JSON:', response.status, type);
-        alert('Could not generate AI sub-themes.');
+        console.error('Fetch for themes failed or returned non-JSON:', response.status, type);
+        alert('Could not generate AI themes.');
         // Make sure to hide loading indicators in case of failure
-        document.getElementById('subthemeLoading').style.display = 'none';
+        document.getElementById('themeLoading').style.display = 'none';
+        document.getElementById('mainTheme').style.display = 'block'; // Show the select box again
         return;
     }
     // --- END OF SAFETY CHECK ---
 
     const data = await response.json();
-    data.subthemes.forEach((subtheme, index) => {
-        // ... success logic is unchanged ...
-        const id = `subtheme-${index}`;
-        const label = document.createElement('label');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.name = 'weeklySubThemes';
-        checkbox.value = subtheme;
-        checkbox.id = id;
-        label.appendChild(checkbox);
-        label.append(` ${subtheme}`);
-        container.appendChild(label);
+    mainThemeSelect.innerHTML = '<option value="">-- Select a Main Theme --</option>';
+    data.themes.forEach(theme => {
+        const option = document.createElement('option');
+        option.value = theme;
+        option.textContent = theme;
+        mainThemeSelect.appendChild(option);
     });
 } catch (error) {
-    // ... error logic is unchanged ...
-    console.error('Error generating AI sub-themes:', error);
-    alert('Could not generate sub-themes.');
+    console.error('Error generating AI themes:', error);
+    alert('Could not generate AI themes. Please try again.');
 } finally {
-    // ... finally logic is unchanged ...
-    subthemeLoading.style.display = 'none';
-    container.style.display = 'block';
-    controls.style.display = 'block';
+    themeLoading.style.display = 'none';
+    mainThemeSelect.style.display = 'block';
 }
 
     async generateAISubThemes(mainTheme) {
