@@ -49,6 +49,13 @@ const server = http.createServer((req, res) => {
 
     const requestUrl = url.parse(req.url).pathname;
 
+    // NEW: Health Check Endpoint
+if (req.method === 'GET' && requestUrl === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+    return;
+}
+
     // --- GHL MEMBERSHIP AUTHENTICATION ENDPOINT ---
     if (req.method === 'POST' && requestUrl === '/api/login') {
         let body = '';
