@@ -159,12 +159,11 @@ class MultiStepForm {
         this.init();
     }
 
-    init() {
-        this.bindEvents();
-        this.loadExistingData();
-        this.showStep();
-this.applyLanguage(this.currentLang);
-    }
+   init() {
+    this.bindEvents();
+    this.showView('step0');
+    this.applyLanguage(this.currentLang);
+}
 
     bindEvents() {
         const nextBtn = document.getElementById('nextBtn');
@@ -451,25 +450,27 @@ this.applyLanguage(this.currentLang);
     }
 
     showStep() {
-        document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
-        const currentStepElement = document.getElementById(`step${this.currentStep}`);
-        if (currentStepElement) currentStepElement.classList.add('active');
+    // Hide all views first (both auth and regular steps)
+    document.querySelectorAll('.auth-view, .step').forEach(v => v.classList.remove('active'));
+    
+    // Find and show the correct current view by its ID (e.g., "step0", "step1")
+    const currentView = document.getElementById(`step${this.currentStep}`);
+    if (currentView) {
+        currentView.classList.add('active');
+    }
+
+    // Check if we are on the login screen (step 0)
+    const isAuthView = this.currentStep === 0;
+    
+    // Use the 'toggle' method to show or hide components based on the condition
+    document.querySelector('.progress-container').classList.toggle('d-none', isAuthView);
+    document.querySelector('.form-navigation').classList.toggle('d-none', isAuthView);
+
+    if (!isAuthView) {
         this.updateProgressBar();
         this.updateNavigation();
     }
-
-    updateProgressBar() {
-        const progressFill = document.getElementById('progressFill');
-        const currentStepEl = document.getElementById('currentStep');
-        const totalStepsEl = document.getElementById('totalSteps');
-        
-        const currentQuestion = Math.max(0, this.currentStep - 1);
-        const totalQuestions = 39;
-        
-        if (progressFill) progressFill.style.width = `${(currentQuestion / totalQuestions) * 100}%`;
-        if (currentStepEl) currentStepEl.textContent = currentQuestion;
-        if (totalStepsEl) totalStepsEl.textContent = totalQuestions;
-    }
+}
 
     updateNavigation() {
         const prevBtn = document.getElementById('prevBtn');
