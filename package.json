@@ -1,11 +1,9 @@
 {
-  "name": "ghl-gemini-proxy",
+  "name": "gemini-proxy",
   "version": "1.0.0",
-  "description": "Proxy server for GHL form",
+  "description": "A proxy for Gemini and GHL APIs.",
   "main": "gemini-proxy.js",
-  "scripts": {
-    "start": "node gemini-proxy.js"
-  },
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  }
 }
