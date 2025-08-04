@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A proxy for Gemini and GHL APIs.",
   "main": "gemini-proxy.js",
-  "type": "module",  <--- Add this line
+  "type": "module",
   "dependencies": {
     "node-fetch": "^2.6.1"
   }
